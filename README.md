@@ -45,7 +45,7 @@
 
 1. **Download or clone** this repository
    ```bash
-   git clone https://github.com/YOUR_USERNAME/markdocx.git
+   git clone https://github.com/AbdallahAwdalla/markdocx.git
    ```
 
 2. Open Chrome and navigate to `chrome://extensions`
