@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "MD to Word",
+  "description": "Convert Markdown files to Word (.docx) documents",
+  "version": "1.0.0",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MD to Word Converter"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

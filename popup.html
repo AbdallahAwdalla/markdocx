@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MD to Word</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f0f13;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      padding: 16px 20px 0;
+      border-bottom: 1px solid #1e3a5f;
+    }
+    .header-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .header-text h1 { font-size: 14px; font-weight: 700; color: #f1f5f9; letter-spacing: -.3px; }
+    .header-text p  { font-size: 11px; color: #64748b; }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 2px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 8px 0;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s;
+      letter-spacing: .2px;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    .tab-btn:hover { color: #94a3b8; }
+    .tab-btn.active { color: #60a5fa; border-bottom-color: #3b82f6; }
+
+    /* ── Panels ── */
+    .panel { display: none; padding: 18px 18px 20px; }
+    .panel.active { display: block; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed #2d3f55;
+      border-radius: 12px;
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #111827;
+      position: relative;
+      overflow: hidden;
+    }
+    .drop-zone::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(59,130,246,.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #3b82f6; background: #0f1f35;
+    }
+    .drop-zone.drag-over { transform: scale(1.01); }
+    .drop-icon { font-size: 32px; margin-bottom: 8px; display: block; }
+    .drop-zone h3 { font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 3px; }
+    .drop-zone p  { font-size: 11px; color: #475569; }
+    .drop-zone p span { color: #3b82f6; text-decoration: underline; cursor: pointer; }
+    #file-input { display: none; }
+
+    /* ── File list ── */
+    .file-list { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
+    .file-item {
+      background: #1a2233; border: 1px solid #1e3050; border-radius: 8px;
+      padding: 9px 11px; display: flex; align-items: center; gap: 9px;
+    }
+    .file-icon { font-size: 18px; flex-shrink: 0; }
+    .file-info { flex: 1; min-width: 0; }
+    .file-name { font-size: 12px; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-size { font-size: 10px; color: #475569; margin-top: 1px; }
+    .file-status { font-size: 11px; font-weight: 500; flex-shrink: 0; }
+    .file-status.pending    { color: #64748b; }
+    .file-status.converting { color: #f59e0b; }
+    .file-status.done       { color: #22c55e; }
+    .file-status.error      { color: #ef4444; }
+    .remove-btn {
+      background: none; border: none; color: #475569; cursor: pointer;
+      padding: 2px; font-size: 13px; line-height: 1; border-radius: 4px;
+      flex-shrink: 0; transition: color .15s;
+    }
+    .remove-btn:hover { color: #ef4444; }
+
+    /* ── Clipboard panel ── */
+    .clipboard-toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+    .btn-paste {
+      display: flex; align-items: center; gap: 6px;
+      background: #1e293b; border: 1px solid #2d3f55;
+      color: #94a3b8; border-radius: 8px;
+      padding: 7px 13px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all .18s; white-space: nowrap;
+    }
+    .btn-paste:hover { background: #273344; color: #cbd5e1; border-color: #3b82f6; }
+    .btn-paste.pasting { color: #60a5fa; border-color: #3b82f6; }
+
+    .clip-filename {
+      flex: 1;
+      background: #111827; border: 1px solid #1e3050;
+      color: #cbd5e1; border-radius: 8px;
+      padding: 7px 10px; font-size: 12px;
+      outline: none; transition: border-color .18s;
+    }
+    .clip-filename:focus { border-color: #3b82f6; }
+    .clip-filename::placeholder { color: #334155; }
+
+    .md-textarea {
+      width: 100%;
+      height: 200px;
+      background: #111827;
+      border: 1px solid #1e3050;
+      border-radius: 10px;
+      color: #cbd5e1;
+      font-family: "Courier New", monospace;
+      font-size: 11.5px;
+      line-height: 1.55;
+      padding: 12px;
+      resize: vertical;
+      outline: none;
+      transition: border-color .18s;
+    }
+    .md-textarea:focus { border-color: #3b82f6; }
+    .md-textarea::placeholder { color: #334155; }
+    .md-textarea.has-content { border-color: #1e4a7a; }
+
+    .textarea-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 6px;
+    }
+    .char-count { font-size: 10px; color: #334155; }
+    .char-count.has-text { color: #475569; }
+    .btn-clear-text {
+      background: none; border: none; color: #475569; font-size: 10px;
+      cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: color .15s;
+    }
+    .btn-clear-text:hover { color: #ef4444; }
+
+    /* ── Shared: Options ── */
+    .options-section {
+      margin-top: 14px;
+      background: #111827; border: 1px solid #1e3050;
+      border-radius: 10px; padding: 12px 14px;
+    }
+    .options-title {
+      font-size: 10px; font-weight: 600; color: #475569;
+      text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px;
+    }
+    .option-row {
+      display: flex; align-items: center;
+      justify-content: space-between; padding: 5px 0;
+    }
+    .option-label { font-size: 12px; color: #94a3b8; }
+    .toggle { position: relative; width: 34px; height: 19px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0;
+      background: #1e293b; border-radius: 20px;
+      cursor: pointer; transition: .2s; border: 1px solid #2d3f55;
+    }
+    .slider:before {
+      content: ''; position: absolute;
+      height: 13px; width: 13px; left: 2px; bottom: 2px;
+      background: #64748b; border-radius: 50%; transition: .2s;
+    }
+    input:checked + .slider { background: #1d4ed8; border-color: #3b82f6; }
+    input:checked + .slider:before { transform: translateX(15px); background: white; }
+    .select-input {
+      background: #1e293b; border: 1px solid #2d3f55;
+      color: #94a3b8; border-radius: 6px;
+      padding: 3px 8px; font-size: 11px; cursor: pointer;
+    }
+
+    /* ── Actions ── */
+    .actions { margin-top: 14px; display: flex; gap: 8px; }
+    .btn {
+      flex: 1; padding: 10px 14px; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; border: none;
+      transition: all .2s; display: flex; align-items: center;
+      justify-content: center; gap: 5px;
+    }
+    .btn-primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; }
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(59,130,246,.3);
+    }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-secondary {
+      background: #1e293b; color: #94a3b8;
+      border: 1px solid #2d3f55;
+    }
+    .btn-secondary:hover { background: #273344; color: #cbd5e1; }
+
+    /* ── Progress ── */
+    .progress-bar {
+      height: 3px; background: #1e293b; border-radius: 2px;
+      margin-top: 12px; overflow: hidden; display: none;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #2563eb, #3b82f6);
+      border-radius: 2px; transition: width .3s ease; width: 0%;
+    }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 14px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1e293b; border: 1px solid #334155;
+      color: #e2e8f0; padding: 7px 15px;
+      border-radius: 8px; font-size: 12px;
+      opacity: 0; transition: all .3s;
+      pointer-events: none; white-space: nowrap; z-index: 100;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: #22c55e; color: #86efac; }
+    .toast.error   { border-color: #ef4444; color: #fca5a5; }
+
+    .empty-hint { font-size: 10px; color: #1e3050; text-align: center; margin-top: 12px; }
+  </style>
+</head>
+<body>
+
+  <!-- Header + Tabs -->
+  <div class="header">
+    <div class="header-top">
+      <div class="logo">📝</div>
+      <div class="header-text">
+        <h1>MD to Word</h1>
+        <p>Markdown → .docx converter</p>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="files">📁 Files</button>
+      <button class="tab-btn"        data-tab="clipboard">📋 Clipboard</button>
+    </div>
+  </div>
+
+  <!-- ── FILES PANEL ── -->
+  <div class="panel active" id="panel-files">
+    <div class="drop-zone" id="drop-zone">
+      <span class="drop-icon">📄</span>
+      <h3>Drop Markdown files here</h3>
+      <p>or <span id="browse-link">browse to upload</span></p>
+      <input type="file" id="file-input" accept=".md,.markdown" multiple />
+    </div>
+
+    <div class="file-list" id="file-list"></div>
+
+    <div class="progress-bar" id="progress-bar-files">
+      <div class="progress-fill" id="progress-fill-files"></div>
+    </div>
+
+    <div class="options-section">
+      <div class="options-title">⚙ Options</div>
+      <div class="option-row">
+        <span class="option-label">Page size</span>
+        <select class="select-input" id="page-size">
+          <option value="letter">US Letter</option>
+          <option value="a4">A4</option>
+        </select>
+      </div>
+      <div class="option-row">
+        <span class="option-label">Code block styling</span>
+        <label class="toggle"><input type="checkbox" id="opt-code" checked /><span class="slider"></span></label>
+      </div>
+      <div class="option-row">
+        <span class="option-label">Preserve filename</span>
+        <label class="toggle"><input type="checkbox" id="opt-filename" checked /><span class="slider"></span></label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="clear-btn">Clear</button>
+      <button class="btn btn-primary" id="convert-btn" disabled>⚡ Convert to Word</button>
+    </div>
+    <p class="empty-hint">Supports: headings, bold, italic, lists, tables, code, math, links</p>
+  </div>
+
+  <!-- ── CLIPBOARD PANEL ── -->
+  <div class="panel" id="panel-clipboard">
+    <div class="clipboard-toolbar">
+      <button class="btn-paste" id="paste-btn">📋 Paste from clipboard</button>
+      <input class="clip-filename" id="clip-filename" type="text"
+             placeholder="output-filename.docx" value="clipboard.docx" />
+    </div>
+
+    <textarea class="md-textarea" id="md-textarea"
+      placeholder="Paste or type Markdown here…&#10;&#10;## Example&#10;**Bold**, *italic*, `code`&#10;$$E = mc^2$$"></textarea>
+
+    <div class="textarea-footer">
+      <span class="char-count" id="char-count">0 chars</span>
+      <button class="btn-clear-text" id="clear-text-btn">Clear</button>
+    </div>
+
+    <div class="options-section">
+      <div class="options-title">⚙ Options</div>
+      <div class="option-row">
+        <span class="option-label">Page size</span>
+        <select class="select-input" id="page-size-clip">
+          <option value="letter">US Letter</option>
+          <option value="a4">A4</option>
+        </select>
+      </div>
+      <div class="option-row">
+        <span class="option-label">Code block styling</span>
+        <label class="toggle"><input type="checkbox" id="opt-code-clip" checked /><span class="slider"></span></label>
+      </div>
+    </div>
+
+    <div class="progress-bar" id="progress-bar-clip">
+      <div class="progress-fill" id="progress-fill-clip"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="clear-clip-btn">Clear</button>
+      <button class="btn btn-primary" id="convert-clip-btn" disabled>⚡ Convert to Word</button>
+    </div>
+    <p class="empty-hint">Supports: headings, bold, italic, lists, tables, code, math, links</p>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="marked.umd.js"></script>
+  <script src="temml.min.js"></script>
+  <script src="mathml-to-omml.js"></script>
+  <script src="jszip.min.js"></script>
+  <script src="docx.iife.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

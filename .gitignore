@@ -1,0 +1,19 @@
+# Node (only needed for updating bundled libs)
+node_modules/
+package-lock.json
+package.json
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts / zips (optional — remove if you want to ship a zip)
+*.zip
