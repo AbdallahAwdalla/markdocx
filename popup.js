@@ -305,6 +305,13 @@
     var zip = await JSZip.loadAsync(await blob.arrayBuffer());
     var xml = await zip.file("word/document.xml").async("string");
 
+    function escapeXml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
     for (var entry of mathMap) {
       var id   = entry[0];
       var info = entry[1];
@@ -324,14 +331,48 @@
         var iph = "MATHINLINE_" + id;
         var rIdx = xml.indexOf(iph);
         if (rIdx === -1) continue;
+        // Walk back to find the opening <w:r> tag (may have attributes or w:rPr inside)
         var rStart = xml.lastIndexOf("<w:r>", rIdx);
-        if (rStart === -1) rStart = xml.lastIndexOf("<w:r ", rIdx);
+        var rStartAttr = xml.lastIndexOf("<w:r ", rIdx);
+        if (rStartAttr > rStart) rStart = rStartAttr;
         var rEnd = xml.indexOf("</w:r>", rIdx) + 6;
         if (rStart === -1 || rEnd < 6) continue;
+
+        var runContent = xml.slice(rStart, rEnd);
+
+        // Extract the run content
         var oMathStart = res.omml.indexOf("<m:oMath>");
         var oMathEnd   = res.omml.lastIndexOf("</m:oMath>") + 10;
         var inlineOmml = oMathStart >= 0 ? res.omml.slice(oMathStart, oMathEnd) : res.omml;
-        xml = xml.slice(0, rStart) + inlineOmml + xml.slice(rEnd);
+
+        // Get the text content of the run (everything between <w:t...>...</w:t>)
+        var tMatch = runContent.match(/(<w:t[^>]*>)([\s\S]*?)(<\/w:t>)/);
+        if (!tMatch) continue;
+        var tOpen = tMatch[1], tText = tMatch[2], tClose = tMatch[3];
+
+        // Get the run prefix (e.g. <w:r><w:rPr>...</w:rPr>) and suffix (</w:r>)
+        var tStart = runContent.indexOf(tOpen);
+        var tEnd   = runContent.indexOf(tClose, tStart) + tClose.length;
+        var runPrefix = runContent.slice(0, tStart);   // e.g. "<w:r><w:rPr>...</w:rPr>"
+        var runSuffix = runContent.slice(tEnd);        // e.g. "</w:r>"
+
+        // Locate the placeholder inside the text
+        var phPos = tText.indexOf(iph);
+        if (phPos === -1) continue;
+        var beforeText = tText.slice(0, phPos);
+        var afterText  = tText.slice(phPos + iph.length);
+
+        // Build replacement: optional <w:r>before</w:r> + OMML + optional <w:r>after</w:r>
+        var replacement = "";
+        if (beforeText.length) {
+          replacement += runPrefix + tOpen + escapeXml(beforeText) + tClose + runSuffix;
+        }
+        replacement += inlineOmml;
+        if (afterText.length) {
+          replacement += runPrefix + tOpen + escapeXml(afterText) + tClose + runSuffix;
+        }
+
+        xml = xml.slice(0, rStart) + replacement + xml.slice(rEnd);
       }
     }
 
@@ -417,8 +458,24 @@
       var tok = tokens[i];
       switch (tok.type) {
         case "text":
-          if (tok.tokens) { runs = runs.concat(inlineToRuns(tok.tokens, base)); }
-          else { runs.push(new TextRun(Object.assign({ text: tok.text || "" }, base))); }
+          if (tok.tokens) {
+            runs = runs.concat(inlineToRuns(tok.tokens, base));
+          } else {
+            // Split on MATHINLINE_ placeholders so each gets its own <w:r>
+            // e.g. "Generator (MATHINLINE_MATHPH0):" → 3 separate runs
+            // JSZip can then find and replace the isolated placeholder run with OMML
+            var rawText = tok.text || "";
+            if (rawText.indexOf("MATHINLINE_") !== -1) {
+              var parts = rawText.split(/(MATHINLINE_MATHPH\d+)/);
+              for (var pi = 0; pi < parts.length; pi++) {
+                if (parts[pi]) {
+                  runs.push(new TextRun(Object.assign({ text: parts[pi] }, base)));
+                }
+              }
+            } else {
+              runs.push(new TextRun(Object.assign({ text: rawText }, base)));
+            }
+          }
           break;
         case "strong":
           runs = runs.concat(inlineToRuns(
